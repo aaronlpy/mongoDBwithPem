@@ -13,9 +13,21 @@ class MongoDBConnector {
         ServerAddress serverAddress = new ServerAddress(host, port)
         def pemFile = new File(pemFilePath)
         def pemContent = pemFile.text
-        MongoCredential credential = MongoCredential.createMongoX509Credential(null, pemContent.toCharArray())
+        def username = extractUsernameFromPEM(pemContent)
+        MongoCredential credential = MongoCredential.createMongoX509Credential(username, null)
         mongoClient = new MongoClient(serverAddress, [credential] as List)
         database = mongoClient.getDatabase(databaseName)
+    }
+
+    private String extractUsernameFromPEM(String pemContent) {
+        // Extract the common name (CN) from the PEM content
+        // This assumes the PEM content follows the X.509 certificate format
+        // You may need to adjust this logic based on your certificate format
+        def matcher = (pemContent =~ /CN=([^,]+)/)
+        if (matcher.find()) {
+            return matcher.group(1)
+        }
+        throw new IllegalArgumentException("Cannot extract username from PEM file.")
     }
 
     MongoCollection<Document> getCollection(String collectionName) {
