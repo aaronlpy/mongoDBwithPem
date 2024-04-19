@@ -1,0 +1,38 @@
+import com.mongodb.ConnectionString
+import com.mongodb.MongoClientSettings
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import org.bson.Document
+
+class MongoDBConnector {
+    MongoClientSettings settings
+    MongoDatabase database
+
+    MongoDBConnector(String pemFilePath, String dbName) {
+        def connectionString = "mongodb://localhost:27017/$dbName"
+        def sslSettings = MongoClientSettings.builder()
+                .applyConnectionString(new ConnectionString(connectionString))
+                .sslEnabled(true)
+                .sslInvalidHostNameAllowed(true)
+                .sslContext(SSLUtils.createSSLContext(pemFilePath))
+                .build()
+        settings = sslSettings
+        database = MongoClients.create(settings).getDatabase(dbName)
+    }
+
+    MongoCollection<Document> getCollection(String collectionName) {
+        return database.getCollection(collectionName)
+    }
+}
+
+// Example usage:
+def connector = new MongoDBConnector("/path/to/pem/file.pem", "myDatabase")
+def collection = connector.getCollection("myCollection")
+
+// Perform operations on the collection, e.g., insert document
+def document = new Document("name", "John Doe").append("age", 30)
+collection.insertOne(document)
+
+// Close the MongoClient when done
+// No need to close the client explicitly, it will be handled by the garbage collector
