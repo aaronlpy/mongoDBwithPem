@@ -36,3 +36,82 @@ collection.insertOne(document)
 
 // Close the MongoClient when done
 // No need to close the client explicitly, it will be handled by the garbage collector
+
+
+If you're connecting to a MongoDB instance hosted on AWS RDS (Relational Database Service) and need to use SSL/TLS with a CA (Certificate Authority) certificate for authentication, you'll need to make some adjustments to the connection setup. Below is the modified MongoDBConnector class to support connecting to an AWS RDS MongoDB instance using SSL/TLS with a CA certificate:
+
+groovy
+Copy code
+import com.mongodb.ConnectionString
+import com.mongodb.MongoClientSettings
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
+import org.bson.Document
+
+class MongoDBConnector {
+    MongoClientSettings settings
+    MongoDatabase database
+
+    MongoDBConnector(String username, String password, String dbName, String rdsEndpoint, String caFilePath) {
+        def connectionString = "mongodb+srv://$username:$password@$rdsEndpoint/$dbName"
+        def sslSettings = MongoClientSettings.builder()
+                .applyConnectionString(new ConnectionString(connectionString))
+                .sslEnabled(true)
+                .sslInvalidHostNameAllowed(true)
+                .sslContext(SSLUtils.createSSLContext(caFilePath))
+                .build()
+        settings = sslSettings
+        database = MongoClients.create(settings).getDatabase(dbName)
+    }
+
+    MongoCollection<Document> getCollection(String collectionName) {
+        return database.getCollection(collectionName)
+    }
+}
+
+// Example usage:
+def connector = new MongoDBConnector("myUsername", "myPassword", "myDatabase", "your_rds_endpoint.amazonaws.com", "/path/to/ca.pem")
+def collection = connector.getCollection("myCollection")
+
+// Perform operations on the collection, e.g., insert document
+def document = new Document("name", "John Doe").append("age", 30)
+collection.insertOne(document)
+
+// Close the MongoClient when done
+// No need to close the client explicitly, it will be handled by the garbage collector
+In this modified code:
+
+We use the MongoClientSettings builder to construct settings for the MongoDB client.
+We enable SSL/TLS with .sslEnabled(true).
+We allow invalid host names for SSL connections with .sslInvalidHostNameAllowed(true) (this is necessary for AWS RDS, as the host name does not match the SSL certificate).
+We provide a custom SSL context using a CA certificate file with .sslContext(SSLUtils.createSSLContext(caFilePath)).
+The SSLUtils.createSSLContext method is a custom utility to create an SSL context from a CA certificate file.
+Below is an example implementation of the SSLUtils.createSSLContext method:
+
+
+import javax.net.ssl.SSLContext
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.security.KeyStore
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
+
+class SSLUtils {
+    static SSLContext createSSLContext(String caFilePath) {
+        def certStream = Files.newInputStream(Paths.get(caFilePath))
+        def certificateFactory = CertificateFactory.getInstance("X.509")
+        def cert = certificateFactory.generateCertificate(certStream) as X509Certificate
+
+        def keyStore = KeyStore.getInstance(KeyStore.getDefaultType())
+        keyStore.load(null, null)
+        keyStore.setCertificateEntry("ca-certificate", cert)
+
+        def trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        trustManagerFactory.init(keyStore)
+
+        def sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, trustManagerFactory.getTrustManagers(), null)
+        return sslContext
+    }
+}
