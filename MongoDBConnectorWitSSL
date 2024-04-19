@@ -13,9 +13,11 @@ class MongoDBConnector {
         def connectionString = "mongodb://localhost:27017/$dbName"
         def sslSettings = MongoClientSettings.builder()
                 .applyConnectionString(new ConnectionString(connectionString))
-                .sslEnabled(true)
-                .sslInvalidHostNameAllowed(true)
-                .sslContext(SSLUtils.createSSLContext(pemFilePath))
+                .applyToSslSettings { builder ->
+                    builder.enabled(true)
+                    builder.invalidHostNameAllowed(true)
+                    builder.context(SSLUtils.createSSLContext(pemFilePath))
+                }
                 .build()
         settings = sslSettings
         database = MongoClients.create(settings).getDatabase(dbName)
